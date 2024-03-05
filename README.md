@@ -142,6 +142,14 @@ make bin-x86_64-efi/ipxe.efi EMBED=boot.ipxe
 # DO: set your DHCP server to provide the TFTP server address and bootfilename to point to one of the above files
 ```
 
+## How to prepare the Windows PC for capture and/or deploy
+
+1) Install Windows 10 or 11 on a PC
+2) Do whatever you want - install stuff, change settings, etc etc
+3) Shutdown cleanly and reboot in to the WinPE capture environment
+
+No sysprep needed!
+
 ## Notes on how it works
 
 In custom building iPXE, we are able to embed a config file in it. This saves a bunch of complexity in the DHCP server configuration. iPXE allows us to boot from HTTP servers, including from `.wim` files.
@@ -151,5 +159,9 @@ The `wimboot` package extends iPXE to support booting from `.wim` files. Instead
 Being that `startnet.cmd` is just a regular old batch file, you could customise it to your hearts content. eg, "Press F in the next 60 seconds to capture an image from this PC or else we'll start automatically imaging this PC". Or making it so that deploying an image pulls from a read only share, but capturing an image will ask for username/password to mount the share with so that you don't have to have a globally writable windows share to store the images. The only requirement is that the first line of this file is `wpeinit`.
 
 Likewise, being that the `boot.ipxe` and the `startnet.cmd` files are served by a HTTP server, they could trivially both be dynamically generated. eg, press button to enter imaging mode and the next PC to network boot will auto-capture an image. Or having the script poll a backend to post success/failure results.
+
+There are ways to customise the DHCP server so that it will serve `undionly.kpxe` to regular BIOS netboot clients and `ipxe.efi` to EFI based netboot clients. [Here is an example](https://docs.fogproject.org/en/latest/kb/how-tos/bios-and-uefi-co-existence/#using-linux-dhcp) that you'd need to adapt to this scenario. Without adding something like this you can only support EITHER BIOS _or_ EFI netbooting ... I think. And hence above, you have to pick setting the bootfilename to either `undionly.kpxe` or `ipxe.efi` according to what you're targetting.
+
+FFU files advertise in the Microsoft docs that they can be "optimised". Be aware that this apparently only works if the FFU image is of a sysprep'd system. As we are NOT syspreping, do NOT optimise. When we tried it, it truncated almost the entire image.
 
 Security in this configuration is an afterthought. The Windows SMB share is globally writable by anonymous users. It is left as an exercise for the reader to lock it down a bit more.
