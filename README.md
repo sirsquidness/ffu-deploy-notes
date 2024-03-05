@@ -10,7 +10,9 @@ Requirements:
 * A DHCP server
 * A TFTP server
 
-## A Linux SMB server
+## Steps to Do
+
+### A Linux SMB server
 
 On a Linux box with Docker and adequate storage space:
 
@@ -67,7 +69,7 @@ docker build -t samba .
 
 docker run -d --restart=unless-stopped -v /data/temp/share:/srv/share samba
 
-## Preparing the WIM boot file
+### Preparing the WIM boot file
 
 On a PC with a web server, mount a Windows 10 or 11 ISO file. From this, extract:
 * `boot/bcd`
@@ -108,9 +110,11 @@ echo "Process finished."
 REM DO: Consider adding a reboot at this step. Without a shutdown -r -t 0 here, after finishing the dism command it will sit at command prompt forever. `exit` might also work.
 ```
 
+In the same directory, [download the latest version of `wimboot`](https://github.com/ipxe/wimboot/releases/latest/download/wimboot) and make sure it has a filename of `wimboot`.
+
 Important: if your target PCs need special drivers injected, you will need to inject drivers separately to the boot.wim file manually (eg using MDT or dism.exe or similar)
 
-## Preparing iPXE
+### Preparing iPXE
 
 On a linux box (take note of the `DO:` things as you need to do manual steps):
 ```
@@ -136,3 +140,14 @@ make bin-x86_64-efi/ipxe.efi EMBED=boot.ipxe
 # DO: set your DHCP server to provide the TFTP server address and bootfilename to point to one of the above files
 ```
 
+## Notes on how it works
+
+In custom building iPXE, we are able to embed a config file in it. This saves a bunch of complexity in the DHCP server configuration. iPXE allows us to boot from HTTP servers, including from `.wim` files.
+
+The `wimboot` package extends iPXE to support booting from `.wim` files. Instead of using MDT or ADK or other big fat silly Windows packages to inject a single file in to the `boot.wim`, we use the `wimboot` package to overlay the script file we want. This means (except for any drivers we need to inject) we can use an entirely vanilla `boot.wim` file.
+
+Being that `startnet.cmd` is just a regular old batch file, you could customise it to your hearts content. eg, "Press F in the next 60 seconds to capture an image from this PC or else we'll start automatically imaging this PC". Or making it so that deploying an image pulls from a read only share, but capturing an image will ask for username/password to mount the share with so that you don't have to have a globally writable windows share to store the images. The only requirement is that the first line of this file is `wpeinit`.
+
+Likewise, being that the `boot.ipxe` and the `startnet.cmd` files are served by a HTTP server, they could trivially both be dynamically generated. eg, press button to enter imaging mode and the next PC to network boot will auto-capture an image. Or having the script poll a backend to post success/failure results.
+
+Security in this configuration is an afterthought. The Windows SMB share is globally writable by anonymous users. It is left as an exercise for the reader to lock it down a bit more.
