@@ -164,4 +164,6 @@ There are ways to customise the DHCP server so that it will serve `undionly.kpxe
 
 FFU files advertise in the Microsoft docs that they can be "optimised". Be aware that this apparently only works if the FFU image is of a sysprep'd system. As we are NOT syspreping, do NOT optimise. When we tried it, it truncated almost the entire image.
 
+Scaling out is easy. When deploying the FFU image, you can create multiple cloned SMB servers all containing the same configuration and FFU file. Put all of the servers behind a round-robin DNS record and use that DNS record in the `net use` statement. Or, have whatever generates the `startnet.cmd` file do the round robining for you. Last time we did this, we had 5 servers running and managed to get a large fraction of 100Gbps of imaging traffic. Be aware that round robin DNS records might get cached by your DNS resolvers somewhere in your LAN, and so it can be prudent to set a 1 second TTL on the record, and also have the `startnet.cmd` script include a random wait of, eg, up to a minute.
+
 Security in this configuration is an afterthought. The Windows SMB share is globally writable by anonymous users. It is left as an exercise for the reader to lock it down a bit more.
