@@ -61,13 +61,15 @@ cat <<EOF >smb.conf
     create mask = 0755
     acl allow execute always = yes
 EOF
-```
 
+# do folder permission crimes to let smb inside docker write to this folder
 mkdir -p share
 chmod 777 share/
 docker build -t samba .
 
-docker run -d --restart=unless-stopped -v /data/temp/share:/srv/share samba
+docker run -d --restart=unless-stopped -v $(pwd)/share:/srv/share samba
+```
+
 
 ### Preparing the WIM boot file
 
