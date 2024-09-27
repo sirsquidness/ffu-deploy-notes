@@ -4,6 +4,8 @@ These notes describe how to capture then deploy a Windows PC image using FFU ima
 
 tl;dr - we will use iPXE to boot a PXE environment, including iPXE's wimboot that allows injecting overlay files to a `.wim` image file. We will inject small scripts to trigger capture and deploying.
 
+If you would like to support Secure Boot, see the Secure Boot section at the end.
+
 Requirements:
 * A host with Docker
 * An ISO or similar of Windows 10 or 11 installation media
@@ -87,7 +89,7 @@ In the same directory, create a new file called `boot.ipxe` with contents:
 kernel wimboot 
 initrd bcd         BCD
 initrd boot.sdi    boot.sdi
-initrd --name boot.wim winpe_amd64.wim boot.wim
+initrd --name boot.wim  boot.wim
 initrd startnet.cmd startnet.cmd
 # DO: customise desktop background by putting a jpg in this same folder called winpe.jpg then uncommenting this line
 # initrd winpe.jpg winpe.jpg
@@ -116,6 +118,19 @@ In the same directory, [download the latest version of `wimboot`](https://github
 
 Important: if your target PCs need special drivers injected, you will need to inject drivers separately to the boot.wim file manually (eg using MDT or dism.exe or similar)
 
+### Preparing the boot.wim file
+
+In the last step you fetched `boot.wim` from Windows install media. We need to remove `setup.exe` from it. On Linux, you can do:
+
+```
+sudo apt-get install wimtools
+wimmountrw boot.wim 2 temp/
+rm temp/setup.exe
+wimunmount temp/ --commit
+```
+
+There are equivalent tools on Windows and I'm sure on MacOS too, but I'm on Linux so using other OSs is left as an exercise for the reader. I can tell you that the Windows native tools are _much_ slower than the Linux one.
+
 ### Preparing iPXE
 
 On a linux box (take note of the `DO:` things as you need to do manual steps):
@@ -138,15 +153,34 @@ EOF
 make bin/undionly.kpxe EMBED=boot.ipxe
 make bin-x86_64-efi/ipxe.efi EMBED=boot.ipxe
 
-# DO: put either undionly.kpxe or ipxe.efi on your TFTP server.
+# DO: put either undionly.kpxe or ipxe.efi on your TFTP server. For iPXE SecureBoot support, see note at the end of this doc about SecureBoot.
 # DO: set your DHCP server to provide the TFTP server address and bootfilename to point to one of the above files
 ```
+
+## Quick Sanity Check
+
+You should have a data directory that looks something like this:
+
+```
+~/projects/ffu-deploy-notes$ find data/ -type f
+data/ipxe.efi
+data/Altiris/iPXE/GetPxeScript.aspx
+data/boot.ipxe
+data/bcd
+data/boot.sdi
+data/boot.wim
+data/startnet.cmd
+data/wimboot
+```
+
+If you have these files, you should be able to do `docker compose up -d`, point your DHCP server's TFTP server address at the host running docker, and the system should all work.
 
 ## How to prepare the Windows PC for capture and/or deploy
 
 1) Install Windows 10 or 11 on a PC
 2) Do whatever you want - install stuff, change settings, etc etc
-3) Shutdown cleanly and reboot in to the WinPE capture environment
+3) Edit the `startnet.cmd` file to reflect whether you want to be capturing or deploying an image
+4) Shutdown cleanly and reboot in to the WinPE capture/deploy environment
 
 No sysprep needed!
 
@@ -167,3 +201,9 @@ FFU files advertise in the Microsoft docs that they can be "optimised". Be aware
 Scaling out is easy. When deploying the FFU image, you can create multiple cloned SMB servers all containing the same configuration and FFU file. Put all of the servers behind a round-robin DNS record and use that DNS record in the `net use` statement. Or, have whatever generates the `startnet.cmd` file do the round robining for you. Last time we did this, we had 5 servers running and managed to get a large fraction of 100Gbps of imaging traffic. Be aware that round robin DNS records might get cached by your DNS resolvers somewhere in your LAN, and so it can be prudent to set a 1 second TTL on the record, and also have the `startnet.cmd` script include a random wait of, eg, up to a minute.
 
 Security in this configuration is an afterthought. The Windows SMB share is globally writable by anonymous users. It is left as an exercise for the reader to lock it down a bit more.
+
+## Secure Boot
+
+iPXE is **not** a signed EFI executable, so a secure boot system cannot boot with iPXE. Except... some vendors who use iPXE in their software have signed custom versions of it with their secure boot signing keys. If you PXE boot to [this _signed_ iPXE binary](https://knowledge.broadcom.com/external/article/280113/updated-64bit-ipxeefi-ipxe-v1211+-binari.html), it will chain load to `http://<ip-of-tftp-server>:4433/Altiris/iPXE/GetPxeScript.aspx`. All we need to do is to make sure that we have a HTTP server serving an iPXE script at that URL and we can continue on.
+
+In this repo I make `GetPxeScript.aspx` chain out to the `boot.ipxe` file in the root of the webserver so that all of the resources involved in the boot are in the same root directory, simplifying paths.

@@ -1,0 +1,26 @@
+version: "3.8"
+services:
+  static-files:
+    image: nginx:1.25.2
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - './nginx-static.conf:/etc/nginx/nginx.conf:ro'
+      - '${CDN_STATIC_FILES:-./data}:/usr/share/nginx/html'
+
+  samba:
+    build:
+      dockerfile: "./smbd.Dockerfile"
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - '${SAMBA_DIR:-./data}:/srv/share'
+    entrypoint: ["smbd", "--foreground", "--no-process-group"]
+
+  tftp:
+    build:
+      dockerfile: "./tftpd.Dockerfile"
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+    - ./data:/var/tftp_files

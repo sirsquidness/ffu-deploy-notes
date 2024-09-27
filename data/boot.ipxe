@@ -1,0 +1,11 @@
+#!ipxe
+kernel wimboot 
+initrd bcd         BCD
+initrd boot.sdi    boot.sdi
+initrd --name boot.wim boot.wim
+initrd startnet.cmd startnet.cmd
+# DO: customise desktop background by putting a jpg in this same folder called winpe.jpg then uncommenting this line
+# initrd winpe.jpg winpe.jpg
+# You can add extra initrd lines here to overlay extra files in to the x:\windows\system32\ directory of the WinPE environment, including adding full blown scripts, exe files, etc.
+imgstat
+boot
